@@ -1,0 +1,122 @@
+Program.Sub.ScreenSU.Start
+
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+
+'This program will read the file paths from the TraceSummmary.txt and zip them to global\Temp
+F.Intrinsic.Control.Try
+
+	F.Intrinsic.Control.CallSub(ReadFiles)	
+	F.Intrinsic.Control.End
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(errorhandler,"ErrNo",V.Ambient.ErrorNumber, "ErrDesc", V.Ambient.ErrorDescription, "Sub",V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry	
+Program.Sub.Main.End
+
+Program.Sub.ReadFiles.Start
+F.Intrinsic.Control.Try
+	V.Local.sGlobalTempFiles.Declare(String)
+	V.Local.sFileList.Declare(String)
+	V.Local.iFileCount.Declare(Long)
+	V.Local.sFileName.Declare(String)
+	V.Local.sTextArray.Declare(String)
+	V.Local.sTextArray.Redim(0,10)
+	V.Local.sNewLine.Declare(String)
+	V.Local.sNewLine.Set(V.Ambient.NewLine)
+	V.Local.iRowCount.Declare(Long)
+	V.Local.sFileText.Declare(String)
+	V.Local.sFileText.Redim(0,10)
+	V.Local.iPathCount.Declare(Long)
+	V.Local.sSplitText.Declare(String)
+	V.Local.bFileExists.Declare(Boolean)
+	V.Local.bFileLocked.Declare(Boolean)
+	V.Local.sFilePath.Declare(String)
+	V.Local.sCopyFilePath.Declare(String)
+	V.Local.sNewFolder.Declare(String)
+	V.Local.sNowReturn.Declare(String)
+	V.Local.sZipFilePath.Declare(String)
+	V.Local.bTraceSummaryExists.Declare(Boolean)
+	
+	'Get a list of TraceSummary files from the Global\TEMP folder
+	F.Intrinsic.String.Build("{0}\*TraceSummary*.txt", V.Caller.TempDir, V.Local.sGlobalTempFiles)
+	F.Intrinsic.File.GetFileList(V.Local.sGlobalTempFiles,V.Local.sFileList)
+	F.Intrinsic.String.Split(V.Local.sFileList,":", V.Local.sFileList)
+	
+	F.Intrinsic.Control.If(V.Local.sFileList,=,"")
+		F.Intrinsic.Control.End
+	F.Intrinsic.Control.Else
+	
+		'Loops through the file list and splits the file names
+		F.Intrinsic.Control.For(V.Local.iFileCount,0,V.Local.sFileList.UBound,1)
+			F.Intrinsic.UI.InvokeWaitDialog("Reading Files...")
+			F.Intrinsic.String.Format(V.Ambient.Now,"MMDDYYYYHHNNSS",V.Local.sNowReturn)
+			F.Intrinsic.String.Build("{0}\TraceSummary-{1}",V.Caller.TempDir,V.Local.sNowReturn,V.Local.sNewFolder)
+			F.Intrinsic.File.CreateDir(V.Local.sNewFolder)
+			'Builds the file name so the file can be read into an array
+			F.Intrinsic.String.Build("{0}\{1}",V.Caller.TempDir,V.Local.sFileList, V.Local.sFileName)
+		
+			'Reads the text in the file to an array of strings
+			F.Intrinsic.File.FileToStringArray(V.Local.sFileName,"",V.Local.sTextArray)
+			F.Intrinsic.String.Replace(V.Local.sTextArray,V.Local.sNewLine,"*!*", V.Local.sTextArray)
+			F.Intrinsic.String.Split(V.Local.sTextArray,"*!*",V.Local.sTextArray)
+		
+			F.Intrinsic.Control.For(V.Local.iRowCount,V.Local.sTextArray.LBound, V.Local.sTextArray.UBound,1)
+				V.Local.sFileText.Set(V.Local.sTextArray(V.Local.iRowCount))
+				F.Intrinsic.String.Split(V.Local.sFileText," ", V.Local.sFileText)
+			
+				'Checks the Files folder to make sure the file exists
+				F.Intrinsic.File.Exists(V.Local.sFileText(V.Local.sFileText.LBound),V.Local.bFileExists)	
+				
+				F.Intrinsic.Control.If(V.Local.bFileExists,=,True)
+					'Checks to make sure the file isn't being used by another process
+					F.Intrinsic.File.IsFileLocked(V.Local.sFileText(V.Local.sFileText.LBound),V.Local.bFileLocked)
+					'F.Intrinsic.Control.If(V.Local.bFileLocked,=,False)
+						F.Intrinsic.String.Split(V.Local.sFileText,"\",V.Local.sFileText)
+						'Builds the file path for the Global\Files Directory
+						F.Intrinsic.String.Build("{0}\{1}",V.Caller.FilesDir,V.Local.sFileText(V.Local.sFileText.UBound),V.Local.sFilePath)
+						'Builds the file path for where the file is going to be copied to
+						F.Intrinsic.String.Build("{0}\{1}", V.Local.sNewFolder, V.Local.sFileText(V.Local.sFileText.UBound),V.Local.sCopyFilePath)
+						F.Intrinsic.File.CopyOpenFile(V.Local.sFilePath,V.Local.sCopyFilePath)
+					'F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.EndIf
+			
+			F.Intrinsic.Control.Next(V.Local.iRowCount)
+		
+			F.Intrinsic.UI.ChangeWaitStatus("Zipping files...")
+		
+			F.Intrinsic.String.Build("{0}.zip",V.Local.sNewFolder,V.Local.sZipFilePath)
+				F.Automation.Zip.Zip(V.Local.sNewFolder,V.Local.sZipFilePath)
+			'Deletes the non-zipped file folder
+			F.Intrinsic.File.DeleteDir(V.Local.sNewFolder,True)
+			F.Intrinsic.UI.CloseWaitDialog
+		F.Intrinsic.Control.Next(V.Local.iFileCount)
+	
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.UI.CloseWaitDialog
+		
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(errorhandler,"ErrNo",V.Ambient.ErrorNumber, "ErrDesc", V.Ambient.ErrorDescription, "Sub",V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry	
+Program.Sub.ReadFiles.End
+
+Program.Sub.errorhandler.Start
+Variable.Local.sErrorMessage.Declare(String)
+	Function.Intrinsic.String.Build("Error Number: {0}{1}Sub{2}{1}Error Description: {3}{1}",V.Args.ErrNo,V.Ambient.NewLine,V.Args.Sub,V.Args.ErrDesc,Variable.Local.sErrorMessage) 	
+	Function.Intrinsic.UI.Msgbox(Variable.Local.sErrorMessage)
+Function.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(cmd_Unload)
+Function.Intrinsic.Control.EndTry
+Program.Sub.errorhandler.End
+
+Program.Sub.cmd_Unload.Start
+F.Intrinsic.Control.End
+Program.Sub.cmd_Unload.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$12:00:00 AM$}$False
+Program.Sub.Comments.End
